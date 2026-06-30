@@ -26,12 +26,4 @@ MARKETS = {
     "NASDAQ100": {"ticker": "^NDX", "name": "Nasdaq 100", "suffix": ""},
 }
 
-RSS_FEEDS = [
-    "https://feeds.content.dowjones.io/public/rss/mw_topstories",
-    "https://www.investing.com/rss/news.rss",
-    "https://www.investing.com/rss/market_overview.rss",
-    "https://www.forexfactory.com/feed/news",
-    "https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml",
-]
-
 CACHE_FILE = "data/cache.json"
