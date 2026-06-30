@@ -66,7 +66,10 @@ def fetch_calendar(days=7):
                     direction = "up" if a > f else ("down" if a < f else "flat")
                 except:
                     pass
+            import hashlib
+            uid = hashlib.md5(f"{day}|{currency}|{event_name}".encode()).hexdigest()[:10]
             event = {
+                "id": uid,
                 "day": day,
                 "time": time_str,
                 "currency": currency,
@@ -78,8 +81,8 @@ def fetch_calendar(days=7):
                 "previous": previous,
                 "direction": direction,
             }
-            key = f"{day}|{time_str}|{currency}|{event_name}"
-            events[key] = event
+            dk = f"{day}|{time_str}|{currency}|{event_name}"
+            events[dk] = event
         result = sorted(events.values(), key=lambda e: e["day"] + e["time"])
         _cache = {"data": result, "timestamp": now}
         return result
