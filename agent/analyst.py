@@ -1,47 +1,71 @@
 import json
+import re
 from datetime import datetime
 from agent.llm import call_llm
 from agent.calendar_collector import format_calendar_for_prompt
 
 
+def _extract_json(text):
+    text = re.sub(r"```json\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"```\s*", "", text)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1:
+        return json.loads(text[start:end+1])
+    raise ValueError("No JSON found")
+
+
+def _neutral_analysis():
+    return {"impact_xauusd": "neutral", "impact_dxy": "neutral", "impact_eurusd": "neutral", "impact_btc": "neutral", "impact_nasdaq": "neutral", "raisonnement": "Analyse non disponible"}
+
+
 def analyze_sentiment(news_item):
-    prompt = f"""Analyse cet article financier et donne son impact probable sur les marchés (bullish/bearish/neutral) pour chaque actif (XAUUSD, DXY, EURUSD, BTCUSD, NASDAQ100).
+    prompt = f"""Analyse cet article financier.
 
 Titre: {news_item['title']}
 Resume: {news_item['summary'][:300]}
 
-Reponds UNIQUEMENT au format JSON:
-{{"sentiment": "bullish|bearish|neutral", "impact_xauusd": "...", "impact_dxy": "...", "impact_eurusd": "...", "impact_btc": "...", "impact_nasdaq": "...", "explication": "..."}}"""
-    resp = call_llm(prompt)
+Reponds UNIQUEMENT ce JSON (pas d'autre texte):
+{{"sentiment":"bullish|bearish|neutral","impact_xauusd":"bullish|bearish|neutral","impact_dxy":"bullish|bearish|neutral","impact_eurusd":"bullish|bearish|neutral","impact_btc":"bullish|bearish|neutral","impact_nasdaq":"bullish|bearish|neutral","explication":"..."}}"""
     try:
-        start = resp.index("{")
-        end = resp.rindex("}") + 1
-        return json.loads(resp[start:end])
+        resp = call_llm(prompt)
+        return _extract_json(resp)
     except:
-        return {"sentiment": "neutral", "impact_xauusd": "neutre", "impact_dxy": "neutre", "impact_eurusd": "neutre", "impact_btc": "neutre", "impact_nasdaq": "neutre", "explication": "Analyse non disponible"}
+        return {"sentiment": "neutral", "impact_xauusd": "neutral", "impact_dxy": "neutral", "impact_eurusd": "neutral", "impact_btc": "neutral", "impact_nasdaq": "neutral", "explication": "Analyse non disponible"}
 
 
 def analyze_calendar_event(event):
-    prompt = f"""Analyse ce resultat economique et donne son impact probable sur les marches financiers.
+    has_actual = bool(event.get("actual"))
+    if not has_actual:
+        prompt = f"""Tu es un analyste financier. Donne TON analyse de cet evenement A VENIR.
 
 Evenement: {event.get('event', '')}
 Devise: {event.get('currency', '')}
 Date: {event.get('day', '')} {event.get('time', '')}
-Resultat: {event.get('actual', 'N/A')}
 Prevision: {event.get('forecast', 'N/A')}
 Precedent: {event.get('previous', 'N/A')}
 
-Analyse l'impact pour chaque actif et explique le raisonnement.
+Quel est l'impact PREVU sur les marches ?
 
-Reponds UNIQUEMENT au format JSON:
-{{"impact_xauusd": "bullish|bearish|neutral", "impact_dxy": "bullish|bearish|neutral", "impact_eurusd": "bullish|bearish|neutral", "impact_btc": "bullish|bearish|neutral", "impact_nasdaq": "bullish|bearish|neutral", "raisonnement": "explication concise de l'impact"}}"""
-    resp = call_llm(prompt)
+Reponds UNIQUEMENT ce JSON:
+{{"impact_xauusd":"bullish|bearish|neutral","impact_dxy":"bullish|bearish|neutral","impact_eurusd":"bullish|bearish|neutral","impact_btc":"bullish|bearish|neutral","impact_nasdaq":"bullish|bearish|neutral","raisonnement":"impact預測 en 1 phrase"}}"""
+    else:
+        prompt = f"""Tu es un analyste financier. Analyse ce RESULTAT economique.
+
+Evenement: {event.get('event', '')}
+Devise: {event.get('currency', '')}
+Resultat: {event.get('actual', 'N/A')} (vs prevision: {event.get('forecast', 'N/A')})
+Precedent: {event.get('previous', 'N/A')}
+
+Quel est l'impact de ce resultat sur les marches ?
+
+Reponds UNIQUEMENT ce JSON:
+{{"impact_xauusd":"bullish|bearish|neutral","impact_dxy":"bullish|bearish|neutral","impact_eurusd":"bullish|bearish|neutral","impact_btc":"bullish|bearish|neutral","impact_nasdaq":"bullish|bearish|neutral","raisonnement":"impact en 1 phrase"}}"""
     try:
-        start = resp.index("{")
-        end = resp.rindex("}") + 1
-        return json.loads(resp[start:end])
-    except:
-        return {"impact_xauusd": "neutral", "impact_dxy": "neutral", "impact_eurusd": "neutral", "impact_btc": "neutral", "impact_nasdaq": "neutral", "raisonnement": "Analyse non disponible"}
+        resp = call_llm(prompt, "Tu es un analyste. Reponds UNIQUEMENT en JSON valide, sans texte autour.")
+        return _extract_json(resp)
+    except Exception:
+        return _neutral_analysis()
 
 
 def generate_daily_brief(news, prices, calendar_events=None):
