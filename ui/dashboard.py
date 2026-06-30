@@ -61,17 +61,49 @@ def render_daily_brief(brief):
 
 
 def render_calendar(events):
-    st.subheader("Calendrier Economique (TradingView)")
-    important = [e for e in events if e["importance"] >= 0]
+    st.subheader("Calendrier Economique TradingView")
+
     if not events:
         st.caption("Aucun evenement trouve")
         return
-    display = important[:5] if important else events[:5]
+
+    relevant_currencies = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY"]
+    filtered = [e for e in events if e["currency"] in relevant_currencies]
+    important = [e for e in filtered if e["importance"] >= 0]
+
+    display = important[:8] if important else filtered[:5]
+    if not display:
+        display = events[:5]
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    prev_date = None
+
     for e in display:
-        with st.container(border=True):
-            label = f" {e['event'][:45]}" if e["importance"] >= 0 else e["event"][:45]
-            st.markdown(f"**{label}**" if e["importance"] >= 0 else label)
-            st.caption(f"{e['date']} {e['time']} | {e['currency']} | {e['impact']}")
-            if e.get("forecast") or e.get("previous"):
-                st.caption(f"Prev: {e['forecast']} | Prec: {e['previous']}")
-    st.caption(f"{len(important)} evenements importants a venir" if important else f"{len(events)} evenements cette semaine")
+        event_date = e.get("date", "")[:10]
+        if event_date and event_date != prev_date:
+            st.markdown(f"**{event_date}**")
+            prev_date = event_date
+
+        imp = e.get("importance", -1)
+        dot = "🔴" if imp == 1 else ("🟠" if imp == 0 else "⚪")
+        time_str = e.get("time", "")
+        time_display = f"**{time_str}**" if time_str else ""
+
+        cols = st.columns([1, 1, 3, 1, 1, 1])
+        with cols[0]:
+            st.markdown(f"{dot}")
+        with cols[1]:
+            st.markdown(f"{time_display}")
+        with cols[2]:
+            st.markdown(e.get("event", "")[:35])
+        with cols[3]:
+            st.markdown(f"**{e.get('currency', '')}**")
+        with cols[4]:
+            val = e.get("actual", "") or "-"
+            st.markdown(f"*{val}*")
+        with cols[5]:
+            val = e.get("forecast", "") or "-"
+            st.markdown(f"*{val}*")
+
+    count_text = f"{len(important)} evenements importants" if important else f"{len(filtered)} evenements"
+    st.caption(f"{count_text} a venir (7 jours)")
