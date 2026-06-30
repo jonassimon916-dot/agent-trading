@@ -143,6 +143,7 @@ def render_calendar(events):
             pass
 
     prev_day = None
+    row_idx = 0
     for e in filtered:
         if e["day"] != prev_day:
             st.markdown(f'<div class="cal-day-h">{day_labels.get(e["day"], e["day"])}</div>', unsafe_allow_html=True)
@@ -152,7 +153,9 @@ def render_calendar(events):
         cfg = IMPACT_CFG.get(imp, IMPACT_CFG[-1])
         flag = FLAGS.get(e.get("currency", ""), "")
         has_data = bool(e.get("actual")) or bool(e.get("forecast"))
-        eid = e.get("id", "")
+        eid = e.get("id", f"r{row_idx}")
+        res_key = f"cal_res_{eid}"
+        show_analysis = res_key in st.session_state
 
         cols = st.columns([0.5, 0.8, 0.4, 2.5, 0.7, 0.9, 0.9, 0.9, 0.6])
         with cols[0]:
@@ -181,17 +184,16 @@ def render_calendar(events):
             pv = e.get("previous", "") or "-"
             st.markdown(f"<span style='color:{DIM};font-size:12px;font-family:monospace'>{pv}</span>", unsafe_allow_html=True)
         with cols[8]:
-            if has_data and eid:
-                btn_key = f"cal_ai_{eid}"
-                if st.button("AI", key=btn_key, help="Analyser avec IA", use_container_width=True):
+            if has_data and not show_analysis:
+                if st.button("AI", key=f"cai_{eid}_{row_idx}", help="Analyser avec IA", use_container_width=True):
                     from agent.analyst import analyze_calendar_event
                     with st.spinner("Analyse IA en cours..."):
                         analysis = analyze_calendar_event(e)
-                    st.session_state[f"cal_res_{eid}"] = analysis
+                    st.session_state[res_key] = analysis
                     st.rerun()
 
-        if f"cal_res_{eid}" in st.session_state:
-            analysis = st.session_state[f"cal_res_{eid}"]
+        if show_analysis:
+            analysis = st.session_state[res_key]
             impact_cols = st.columns(5)
             impacts = [
                 ("XAUUSD", analysis.get("impact_xauusd", "neutral")),
@@ -205,9 +207,11 @@ def render_calendar(events):
                 with impact_cols[ci]:
                     st.markdown(f"<span style='font-size:12px'>{icon} **{sym}**: {imp_act}</span>", unsafe_allow_html=True)
             st.caption(analysis.get("raisonnement", ""))
-            if st.button("Fermer", key=f"close_{eid}"):
-                del st.session_state[f"cal_res_{eid}"]
+            if st.button("Fermer", key=f"clo_{eid}_{row_idx}"):
+                del st.session_state[res_key]
                 st.rerun()
+
+        row_idx += 1
 
     if not filtered:
         st.markdown(f'<div class="cal-empty">Aucun evenement avec ces filtres</div>', unsafe_allow_html=True)
