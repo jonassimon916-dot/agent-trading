@@ -61,19 +61,17 @@ def render_daily_brief(brief):
 
 
 def render_calendar(events):
-    st.subheader(" Calendrier Économique")
-    high_events = [e for e in events if e["impact"] == "Haute"]
+    st.subheader("Calendrier Economique (TradingView)")
+    important = [e for e in events if e["importance"] >= 0]
     if not events:
-        st.caption("Aucun événement trouvé")
+        st.caption("Aucun evenement trouve")
         return
-    with st.container(border=True):
-        for e in (high_events[:5] if high_events else events[:6]):
-            icon = " " if e["impact"] == "Haute" else " "
-            st.markdown(f"{icon} **{e['event'][:45]}**")
-            st.caption(f"{e['date']} {e['time']}  |  {e['currency']}")
-            if e["forecast"]:
-                st.caption(f"   Prév: {e['forecast']} | Préc: {e['previous']}")
-    if high_events:
-        st.caption(f"  {len(high_events)} événements haute importance à venir")
-    else:
-        st.caption(f"{len(events)} événements cette semaine")
+    display = important[:5] if important else events[:5]
+    for e in display:
+        with st.container(border=True):
+            label = f" {e['event'][:45]}" if e["importance"] >= 0 else e["event"][:45]
+            st.markdown(f"**{label}**" if e["importance"] >= 0 else label)
+            st.caption(f"{e['date']} {e['time']} | {e['currency']} | {e['impact']}")
+            if e.get("forecast") or e.get("previous"):
+                st.caption(f"Prev: {e['forecast']} | Prec: {e['previous']}")
+    st.caption(f"{len(important)} evenements importants a venir" if important else f"{len(events)} evenements cette semaine")

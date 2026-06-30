@@ -1,101 +1,81 @@
 import requests
-import json
 from datetime import datetime, timedelta
-from bs4 import BeautifulSoup
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Origin": "https://www.tradingview.com",
+    "Referer": "https://www.tradingview.com/",
 }
 
-IMPACT_MAP = {
-    "icon--ff-impact-red": "Haute",
-    "icon--ff-impact-ora": "Haute",
-    "icon--ff-impact-yel": "Moyenne",
-    "icon--ff-impact-gra": "Basse",
+COUNTRY_CURRENCY = {
+    "US": "USD", "EU": "EUR", "GB": "GBP", "JP": "JPY", "CH": "CHF",
+    "CA": "CAD", "AU": "AUD", "NZ": "NZD", "CN": "CNY",
 }
+
+IMPACT_LABEL = {1: "Haute", 0: "Moyenne", -1: "Basse"}
 
 CURRENCY_NAMES = {
     "USD": "Dollar US", "EUR": "Euro", "GBP": "Livre Sterling",
     "JPY": "Yen", "CHF": "Franc Suisse", "CAD": "Dollar Canadien",
-    "AUD": "Dollar Australien", "NZD": "Dollar Neo-Zelandais",
-    "CNY": "Yuan Chinois",
+    "AUD": "Dollar Australien", "NZD": "Dollar Neo-Zelandais", "CNY": "Yuan",
 }
 
 _cache = {"data": None, "timestamp": None}
 _CACHE_TTL = timedelta(minutes=15)
 
+IMPORTANT_INDICATORS = [
+    "Interest Rate", "CPI", "GDP", "Employment", "Non Farm Payrolls",
+    "Unemployment", "FOMC", "Fed", "BCE", "NFP", "Inflation",
+    "PPI", "Retail Sales", "PMI", "Manufacturing", "Services",
+    "Housing", "Consumer Confidence", "Trade Balance", "JOLTS",
+    "Industrial Production", "Capacity Utilization",
+]
 
-def fetch_calendar(days_ahead=7):
+
+def fetch_calendar(days=7):
     global _cache
     now = datetime.now()
-    if _cache["data"] is not None and _cache["timestamp"] is not None:
-        if now - _cache["timestamp"] < _CACHE_TTL:
-            return _cache["data"]
+    if _cache["data"] and _cache["timestamp"] and now - _cache["timestamp"] < _CACHE_TTL:
+        return _cache["data"]
     try:
-        resp = requests.get("https://www.forexfactory.com/calendar", headers=HEADERS, timeout=15)
+        today = now.strftime("%Y-%m-%d")
+        end = (now + timedelta(days=days)).strftime("%Y-%m-%d")
+        resp = requests.get(
+            "https://economic-calendar.tradingview.com/events",
+            params={"from": today, "to": end},
+            headers=HEADERS,
+            timeout=15,
+        )
         if resp.status_code != 200:
-            if _cache["data"] is not None:
-                return _cache["data"]
-            return []
-        events = parse_calendar(resp.text)
-        _cache["data"] = events
-        _cache["timestamp"] = now
+            return _cache["data"] or []
+        raw = resp.json().get("result", [])
+        events = []
+        for e in raw:
+            currency = e.get("currency", "") or COUNTRY_CURRENCY.get(e.get("country", ""), e.get("country", ""))
+            importance = e.get("importance", -1)
+            event_name = e.get("indicator", "") or e.get("title", "")
+            events.append({
+                "date": e.get("date", "")[:10],
+                "time": e.get("date", "")[11:16] if e.get("date") else "",
+                "currency": currency,
+                "currency_name": CURRENCY_NAMES.get(currency, currency),
+                "event": event_name,
+                "title": e.get("title", ""),
+                "impact": IMPACT_LABEL.get(importance, "Basse"),
+                "importance": importance,
+                "actual": e.get("actual") or "",
+                "forecast": e.get("forecast") or "",
+                "previous": e.get("previous") or "",
+            })
+        events.sort(key=lambda e: e["date"] + e["time"])
+        _cache = {"data": events, "timestamp": now}
         return events
     except:
-        if _cache["data"] is not None:
-            return _cache["data"]
-        return []
+        return _cache["data"] or []
 
 
-def parse_calendar(html):
-    soup = BeautifulSoup(html, "html.parser")
-    events = []
-    current_date = ""
-    rows = soup.select("tr.calendar__row")
-    for row in rows:
-        date_cell = row.select_one("td.calendar__date")
-        if date_cell:
-            date_text = date_cell.get_text(strip=True)
-            if date_text:
-                current_date = date_text
-        event_cell = row.select_one("td.calendar__event")
-        if not event_cell:
-            continue
-        event_text = event_cell.get_text(strip=True)
-        if not event_text:
-            continue
-        time_cell = row.select_one("td.calendar__time")
-        currency_cell = row.select_one("td.calendar__currency")
-        impact_cell = row.select_one("td.calendar__impact")
-        actual_cell = row.select_one("td.calendar__actual")
-        forecast_cell = row.select_one("td.calendar__forecast")
-        previous_cell = row.select_one("td.calendar__previous")
-        time_text = time_cell.get_text(strip=True) if time_cell else ""
-        currency_text = currency_cell.get_text(strip=True) if currency_cell else ""
-        impact_span = impact_cell.select_one("span.icon") if impact_cell else None
-        impact = "Basse"
-        if impact_span:
-            for cls, label in IMPACT_MAP.items():
-                if cls in impact_span.get("class", []):
-                    impact = label
-                    break
-        events.append({
-            "date": current_date,
-            "time": time_text,
-            "currency": currency_text,
-            "currency_name": CURRENCY_NAMES.get(currency_text, currency_text),
-            "event": event_text,
-            "impact": impact,
-            "actual": actual_cell.get_text(strip=True) if actual_cell else "",
-            "forecast": forecast_cell.get_text(strip=True) if forecast_cell else "",
-            "previous": previous_cell.get_text(strip=True) if previous_cell else "",
-        })
-    events.sort(key=lambda e: (e["date"], e["time"]))
-    return events
-
-
-def get_high_impact_events(days_ahead=7):
-    return [e for e in fetch_calendar(days_ahead) if e["impact"] == "Haute"]
+def get_high_impact_events(days=7):
+    return [e for e in fetch_calendar(days) if e["importance"] >= 0]
 
 
 def format_calendar_for_prompt(events, max_events=15):
