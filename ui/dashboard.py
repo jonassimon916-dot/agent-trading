@@ -58,3 +58,22 @@ def render_daily_brief(brief):
         st.session_state.pop("daily_brief", None)
         st.session_state.pop("last_brief_date", None)
         st.rerun()
+
+
+def render_calendar(events):
+    st.subheader(" Calendrier Économique")
+    high_events = [e for e in events if e["impact"] == "Haute"]
+    if not events:
+        st.caption("Aucun événement trouvé")
+        return
+    with st.container(border=True):
+        for e in (high_events[:5] if high_events else events[:6]):
+            icon = " " if e["impact"] == "Haute" else " "
+            st.markdown(f"{icon} **{e['event'][:45]}**")
+            st.caption(f"{e['date']} {e['time']}  |  {e['currency']}")
+            if e["forecast"]:
+                st.caption(f"   Prév: {e['forecast']} | Préc: {e['previous']}")
+    if high_events:
+        st.caption(f"  {len(high_events)} événements haute importance à venir")
+    else:
+        st.caption(f"{len(events)} événements cette semaine")

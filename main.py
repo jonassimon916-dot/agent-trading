@@ -11,7 +11,8 @@ from config import POLL_INTERVAL_MINUTES, DAILY_BRIEF_HOUR, DAILY_BRIEF_MINUTE
 from agent.news_collector import get_all_news
 from agent.market_data import fetch_current_prices
 from agent.analyst import generate_daily_brief
-from ui.dashboard import render_prices, render_charts, render_daily_brief
+from agent.calendar_collector import fetch_calendar, format_calendar_for_prompt
+from ui.dashboard import render_prices, render_charts, render_daily_brief, render_calendar
 from ui.chat import render_chat
 
 st.set_page_config(
@@ -31,6 +32,8 @@ if "daily_brief" not in st.session_state:
     st.session_state.daily_brief = ""
 if "last_brief_date" not in st.session_state:
     st.session_state.last_brief_date = None
+if "calendar_events" not in st.session_state:
+    st.session_state.calendar_events = fetch_calendar(7)
 
 today = date.today()
 brief_hour = datetime.now().hour
@@ -40,7 +43,9 @@ if st.session_state.last_brief_date != str(today):
     if brief_hour >= DAILY_BRIEF_HOUR and brief_min >= DAILY_BRIEF_MINUTE:
         with st.spinner("Génération du brief quotidien..."):
             st.session_state.daily_brief = generate_daily_brief(
-                st.session_state.news, st.session_state.prices
+                st.session_state.news,
+                st.session_state.prices,
+                st.session_state.calendar_events,
             )
             st.session_state.last_brief_date = str(today)
 
@@ -58,8 +63,10 @@ with col1:
     render_daily_brief(st.session_state.daily_brief)
 
 with col2:
+    render_calendar(st.session_state.calendar_events)
+
     st.subheader("📰 Dernières Actualités")
-    for a in st.session_state.news[:12]:
+    for a in st.session_state.news[:10]:
         with st.container(border=True):
             st.markdown(f"**{a['title']}**")
             st.caption(f"📌 {a['source']} • {a.get('published', '')[:16]}")
@@ -75,7 +82,7 @@ with col2:
         st.rerun()
 
 st.markdown("---")
-render_chat(st.session_state.news, st.session_state.prices)
+render_chat(st.session_state.news, st.session_state.prices, st.session_state.calendar_events)
 
 st.markdown("---")
 from config import LLM_PROVIDER

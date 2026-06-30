@@ -1,8 +1,9 @@
 import streamlit as st
 from agent.analyst import chat_with_agent
+from agent.calendar_collector import format_calendar_for_prompt
 
 
-def render_chat(news, prices):
+def render_chat(news, prices, calendar_events=None):
     st.subheader("💬 Chat avec l'Analyste IA")
 
     if "messages" not in st.session_state:
@@ -14,6 +15,7 @@ def render_chat(news, prices):
 
     news_context = "\n".join([f"- {a['title']}" for a in news[:10]])
     prices_context = "\n".join([f"{k}: {v['price']} ({v['change_1d']:+.2f}%)" for k, v in prices.items()])
+    calendar_context = format_calendar_for_prompt(calendar_events or [], 10)
 
     if prompt := st.chat_input("Pose une question sur les marchés..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -22,7 +24,7 @@ def render_chat(news, prices):
 
         with st.chat_message("assistant"):
             with st.spinner("L'analyste réfléchit..."):
-                response = chat_with_agent(prompt, news_context, prices_context)
+                response = chat_with_agent(prompt, news_context, prices_context, calendar_context)
                 st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
 
