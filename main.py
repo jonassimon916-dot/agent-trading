@@ -12,7 +12,8 @@ from agent.news_collector import get_all_news
 from agent.market_data import fetch_current_prices
 from agent.analyst import generate_daily_brief
 from agent.calendar_collector import fetch_calendar, format_calendar_for_prompt
-from ui.dashboard import render_prices, render_charts, render_daily_brief, render_calendar
+from ui.dashboard import render_prices, render_charts, render_daily_brief
+from ui.calendar_view import render_calendar
 from ui.chat import render_chat
 
 st.set_page_config(
